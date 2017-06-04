@@ -7,12 +7,18 @@
 
 clc;
 clear;
+LIVE_PLOT = 0;
+BREAK_POINT = 1500;
+mue = 10;
+beta = 0.1;
+
+
 %choose your input method
 source = input('Input source = ?: File = 0, Keyboard = 1: ');
 fprintf('source: %d\n',source);
 
 if ~source
-    filename = input('please enter the filename .mat: ','s');
+    filename = input('please enter the complete filename with typending .mat: ','s');
 end
 
 
@@ -25,7 +31,7 @@ fprintf('Method LM: %d\n',LM);
 
 %stepsize beta
 %for LM beta will be substituted 
-beta = 0.01;
+
 
 if source
     
@@ -55,10 +61,19 @@ E = zeros(Ny,M);
 
 %parameter vektor
 w = zeros(N*(Nu+Ny+1)+Ny,1);
+
+w_hist = zeros(N*(Nu+Ny+1)+Ny,BREAK_POINT);
 %delta
 Dw = zeros(N*(Nu+Ny+1)+Ny,1);
 %vektor with partial differentation
 dw = zeros(N*(Nu+Ny+1)+Ny,1);
+
+J_hist = zeros(1,BREAK_POINT);
+
+Y_plot = zeros(Ny*M,BREAK_POINT);
+
+Y_p_plot = zeros(Ny*M,BREAK_POINT);
+
 
 if LM
    beta_LM = w * w';
@@ -131,7 +146,6 @@ for m = 1:M
     hline(posNy,m) = stem(nan,nan);
 end
 end
-w_hist = zeros(length(w),1);
 count = 1;
 
 %% computation of first model-output Y with start parameters
@@ -146,7 +160,7 @@ E = Y_p - Y;
 
 %minimalization criterion
 J = 0.5 * trace(E * E');
-J_hist = J;
+J_hist(:,1) = J;
 delta_J = 10;
 
 %initialization of vektor w
@@ -182,7 +196,7 @@ for posNy = 1:Ny
 end
 
 
-while J > 1e-5 && count ~= 1000 && (abs(delta_J) > 5e-3);
+while J > 1e-6 && count ~= BREAK_POINT %&& (abs(delta_J) > 5e-3);
 
 %% computation of partial-differential-equations
 %beta = abs(J);
@@ -221,18 +235,17 @@ for m = 1:M
     if LM
         %beta_LM = beta_LM_s * beta_LM_s';
         if det(beta_LM) < (10e5 * eps)
-            mue = 10;
+            mue = mue;
         else
             mue = 0;
-        end
-        
+        end        
         beta = inv(beta_LM + mue * eye(length(dw)));
     end
     
     Dw = beta * Dw;
     
     w = w + Dw;
-    w_hist = [w_hist w];
+    w_hist(:,count) = w;
 end%for(M)
 
 %% w  >> W_1 W_2 B_1 B_2
@@ -281,29 +294,33 @@ E = Y_p - Y;
 
 %minimalization criterion
 J = 0.5 * trace(E * E');
-J_hist = [J_hist, J];
+J_hist(:,count+1) = J;
 
 if (count > 100)
     delta_J = J - J_hist(count-90);
 end
 
-posSub = 1;
-for posNy = 1:Ny
-for m = 1:M
-    %subplot(Ny,m,posNy);
-    subplot(Ny,M,posSub);
-    %gcf;
-    posSub = posSub + 1;
-    %plot(1:count,Y_p(posNy,1),1:count,Y(posNy,1));
-    set(hline(posNy,m),'XData',count);
-    set(hline(posNy,m),'YData',Y(posNy,m));
-    set(hline(posNy,m),'Marker','square');        
-    Y_p_plot((posNy*M - M + m ),count) = Y_p(posNy,m); %Y_p_plot((posNy,count))=
-    Y_plot((posNy*M - M + m ),count) = Y(posNy,m);
-    drawnow;
-end
-end
-count = count + 1;
+
+    posSub = 1;
+    for posNy = 1:Ny
+        for m = 1:M
+            if LIVE_PLOT
+            %subplot(Ny,m,posNy);
+            subplot(Ny,M,posSub);
+            %gcf;
+            posSub = posSub + 1;
+            %plot(1:count,Y_p(posNy,1),1:count,Y(posNy,1));
+            set(hline(posNy,m),'XData',count);
+            set(hline(posNy,m),'YData',Y(posNy,m));
+            set(hline(posNy,m),'Marker','square');
+            end
+            Y_p_plot((posNy*M - M + m ),count+1) = Y_p(posNy,m); %Y_p_plot((posNy,count))=
+            Y_plot((posNy*M - M + m ),count+1) = Y(posNy,m);
+            drawnow;
+        end
+    end
+
+count = count + 1
 
 
 end %while(J>1e-4)
@@ -315,12 +332,19 @@ for m = 1:M
     subplot(Ny,M,posSub);
 
     posSub = posSub + 1;
-    plot(1:count-1,Y_p_plot((posNy*M - M + m ),:),1:count-1,Y_plot((posNy*M - M + m ),:));
+    plot(1:count,Y_p_plot((posNy*M - M + m ),1:count),1:count,Y_plot((posNy*M - M + m ),1:count));
     xlabel('Step counter');
     ylabel({'Ny = ',posNy});
     title({'Meassurement = ',m});
 end
 end
+
+%figure;plot(U,Y_p,U,Y_plot(:,end))
+
+% x = 1:20:count;
+% y = 1:M;
+% figure
+% surf(x,y,Y_plot(:,1:20:count))
 
 
 
